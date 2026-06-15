@@ -1,6 +1,6 @@
 # EKS Project (Terraform + Kubernetes)
 
-This repository provisions an AWS EKS cluster with networking, IAM, an Application Load Balancer (ALB), and a sample Nginx application demonstrating pod identity access to S3.
+This repository provisions an AWS EKS cluster with networking, IAM, an Application Load Balancer (ALB), and a sample Nginx application demonstrating pod access to S3 using IRSA (IAM Roles for Service Accounts).
 
 **Region:** eu-central-1
 
@@ -29,8 +29,8 @@ The diagram below shows the VPC, public/private subnets, ALB, EKS worker nodes, 
 **Components (from repo)**
 - `providers.tf`: sets provider to `eu-central-1`.
 - `vpc.tf`: VPC, public/private subnets, IGW, NAT Gateway, route tables.
-- `iam.tf`: IAM roles and policies (`eks-cluster-role`, `eks-node-group-role`, `eks-pod-s3-read-role`).
-- `eks.tf`: EKS cluster `production-eks-cluster`, managed node group, pod identity association for `nginx-s3-sa`.
+- `iam.tf`: IAM roles and policies (`eks-cluster-role`, `eks-node-group-role`, `eks-pod-s3-read-role`) — the pod role uses a web-identity (IRSA) trust to the cluster OIDC provider.
+- `eks.tf`: EKS cluster `production-eks-cluster`, managed node group, and an IAM OIDC provider resource for IRSA.
 - `alb.tf`: Application Load Balancer in public subnets forwarding to NodePort `30080` on instances.
 - `s3.tf`: S3 bucket `devsecops-demo-bucket-unique-suffix`.
 - `k8s-manifests.yaml`: `nginx` Deployment (replicas: 2) + `NodePort` Service (nodePort: 30080) using `nginx-s3-sa`.
@@ -43,7 +43,7 @@ terraform init
 terraform plan
 ```
 
-2. Apply infrastructure:
+2. Apply infrastructure (this will create the EKS cluster, node group, the IAM OIDC provider, and the pod role):
 
 ```bash
 terraform apply -auto-approve
@@ -65,5 +65,6 @@ kubectl apply -f k8s-manifests.yaml
 - Update `aws_eks_access_entry` principal ARN in `eks.tf` to match your admin user.
 - Ensure the S3 bucket name is globally unique if changing it.
 - The Terraform assumes two availability zones are available in the account/region.
+- The repo now implements IRSA: `aws_iam_openid_connect_provider` in `eks.tf` and the pod role in `iam.tf` use a web-identity trust to the cluster OIDC provider.
 
 

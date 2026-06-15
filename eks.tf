@@ -35,34 +35,27 @@ resource "aws_eks_node_group" "nodes" {
   depends_on = [aws_iam_role_policy_attachment.node_policies]
 }
 
-# Pod Identity Addon
-resource "aws_eks_addon" "pod_identity" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "eks-pod-identity"
 
-  # Explicit dependency guarantees the control plane is fully alive first
-  depends_on = [aws_eks_cluster.main]
-}
+# Create an IAM OIDC provider for IRSA (used by pod ServiceAccount roles)
+resource "aws_iam_openid_connect_provider" "eks" {
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da0b1d5a5f3"]
 
-# Pod Identity Association linking custom namespace & ServiceAccount
-resource "aws_eks_pod_identity_association" "nginx_s3_assoc" {
-  cluster_name    = aws_eks_cluster.main.name
-  namespace       = "default"
-  service_account = "nginx-s3-sa"
-  role_arn        = aws_iam_role.pod_s3_read.arn
+  depends_on = [aws_eks_node_group.nodes]
 }
 
 # IAM Role Access Entry (Maps Admin user/role directly via EKS API)
 resource "aws_eks_access_entry" "admin_access" {
   cluster_name  = aws_eks_cluster.main.name
-  principal_arn = "arn:aws:iam::123456789012:user/your-admin-user" # Update with your active principal ARN
+  principal_arn = "arn:aws:iam::123456789012:user/your-user" # Update with your active principal ARN
   type          = "STANDARD"
 }
 
 resource "aws_eks_access_policy_association" "admin_rbac" {
   cluster_name  = aws_eks_cluster.main.name
   policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = "arn:aws:iam::123456789012:user/your-admin-user" # Update with your active principal ARN
+  principal_arn = "arn:aws:iam::123456789012:user/your-user" # Update with your active principal ARN
 
   access_scope {
     type = "cluster"
@@ -92,11 +85,25 @@ resource "aws_security_group" "alb" {
 }
 
 # Allow ALB to communicate with Worker Nodes on Kubernetes NodePort range
+/* Find worker node security group(s) created/owned by EKS. EKS tags node SGs with
+   "kubernetes.io/cluster/<cluster-name>" = "owned". We use the first matched SG. */
+data "aws_security_groups" "eks_nodes_sgs" {
+  filter {
+    name   = "tag:kubernetes.io/cluster/${aws_eks_cluster.main.name}"
+    values = ["owned", "shared"]
+  }
+  filter {
+    name   = "vpc-id"
+    values = [aws_vpc.main.id]
+  }
+}
+
 resource "aws_security_group_rule" "alb_to_nodes" {
   type                     = "ingress"
   from_port                = 30000
   to_port                  = 32767
   protocol                 = "tcp"
-  security_group_id        = aws_eks_node_group.nodes.resources[0].remote_access_security_group_id
+  # Use the worker node SG (first match)
+  security_group_id        = data.aws_security_groups.eks_nodes_sgs.ids[0]
   source_security_group_id = aws_security_group.alb.id
 }

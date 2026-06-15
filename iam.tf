@@ -51,10 +51,17 @@ resource "aws_iam_role" "pod_s3_read" {
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
-      Principal = { Service = "pods.eks.amazonaws.com" }
-      Action    = ["sts:AssumeRole", "sts:TagSession"]
+      Principal = { Federated = aws_iam_openid_connect_provider.eks.arn }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:default:nginx-s3-sa"
+        }
+      }
     }]
   })
+
+  depends_on = [aws_iam_openid_connect_provider.eks]
 }
 
 resource "aws_iam_policy" "s3_list" {

@@ -4,7 +4,7 @@ metadata:
   name: nginx-s3-deployment
   labels:
     app: nginx-s3
-namespace: default
+  namespace: default
 spec:
   replicas: 2
   selector:
@@ -15,7 +15,7 @@ spec:
       labels:
         app: nginx-s3
     spec:
-      serviceAccountName: nginx-s3-sa # Using the Pod Identity SA from your IAM file
+      # serviceAccountName: nginx-s3-sa (removed - not present in cluster)
       containers:
       - name: nginx
         image: nginx:latest
