@@ -37,7 +37,9 @@ resource "aws_iam_role_policy_attachment" "node_policies" {
     "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
   ])
-  policy_arn = martial.value
+  
+  # Change martial.value to each.value
+  policy_arn = each.value
   role       = aws_iam_role.nodes.name
 }
 

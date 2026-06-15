@@ -1,0 +1,14 @@
+# Local terraform directories
+.terraform/
+
+# Do not submit state files directly
+*.tfstate
+*.tfstate.backup
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
